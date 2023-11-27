@@ -9,6 +9,9 @@ edition = "2021"
 nova-snark = "0.31.0"
 bellpepper-core = { version="0.4.0", default-features = false }
 ff = { version = "0.13.0", features = ["derive"] }
+num-bigint = "0.4.3"
+num-integer = "0.1.45"
+
 
 [dev-dependencies]
 blstrs = "0.7.1"

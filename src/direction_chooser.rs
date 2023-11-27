@@ -1,6 +1,8 @@
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::PrimeField;
 
+use crate::NumConstraintSystem;
+
 pub struct DirectionChooser<F: PrimeField> {
     pub board: Vec<AllocatedNum<F>>,
 
@@ -25,39 +27,14 @@ impl<F: PrimeField> DirectionChooser<F> {
         &mut self,
         cs: &mut CS,
     ) -> Result<(), SynthesisError> {
-        let up = self.direction[0].clone();
-        let down = self.direction[1].clone();
-        let left = self.direction[2].clone();
-        let right = self.direction[3].clone();
+        for (i, x) in self.direction.iter().enumerate() {
+            x.apply_bool_constraint(
+                cs.namespace(|| format!("apply a boolean constraint on the direction {}", i)),
+            );
+        }
 
-        cs.enforce(
-            || "apply a boolean constraint on the up",
-            |lc| lc + up.get_variable(),
-            |lc| lc + CS::one() - up.get_variable(),
-            |lc| lc,
-        );
-        cs.enforce(
-            || "apply a boolean constraint on the down",
-            |lc| lc + down.get_variable(),
-            |lc| lc + CS::one() - down.get_variable(),
-            |lc| lc,
-        );
-        cs.enforce(
-            || "apply a boolean constraint on the left",
-            |lc| lc + left.get_variable(),
-            |lc| lc + CS::one() - left.get_variable(),
-            |lc| lc,
-        );
-        cs.enforce(
-            || "apply a boolean constraint on the right",
-            |lc| lc + right.get_variable(),
-            |lc| lc + CS::one() - right.get_variable(),
-            |lc| lc,
-        );
-
-        let mut sum_direction = up.add(cs.namespace(|| "up add down"), &down)?;
-        sum_direction = sum_direction.add(cs.namespace(|| "sum add left"), &left)?;
-        sum_direction = sum_direction.add(cs.namespace(|| "sum add right"), &right)?;
+        let sum_direction =
+            AllocatedNum::sum(cs.namespace(|| "sum_of_direction"), &self.direction)?;
         cs.enforce(
             || "enforce sum_direction equal to one",
             |lc| lc,
@@ -65,146 +42,176 @@ impl<F: PrimeField> DirectionChooser<F> {
             |lc| lc + CS::one() - sum_direction.get_variable(),
         );
 
-        let mut namespace_index = 0;
-
-        // The out = wires_in[0] * up +  wires_in[1] * down +  wires_in[2] * left +  wires_in[3] * right.
-        let mut chooser =
-            |wires_in: &[AllocatedNum<F>; 4]| -> Result<AllocatedNum<F>, SynthesisError> {
-                let mul_up =
-                    wires_in[0].mul(cs.namespace(|| format!("up_{}", namespace_index)), &up)?;
-                let mul_down =
-                    wires_in[1].mul(cs.namespace(|| format!("down_{}", namespace_index)), &down)?;
-                let mul_left =
-                    wires_in[2].mul(cs.namespace(|| format!("left_{}", namespace_index)), &left)?;
-                let mul_right = wires_in[3].mul(
-                    cs.namespace(|| format!("right_{}", namespace_index)),
-                    &right,
-                )?;
-
-                let mut sum = mul_up.add(
-                    cs.namespace(|| format!("up_add_down_{}", namespace_index)),
-                    &mul_down,
-                )?;
-                sum = sum.add(
-                    cs.namespace(|| format!("add_left_{}", namespace_index)),
-                    &mul_left,
-                )?;
-                sum = sum.add(
-                    cs.namespace(|| format!("add_right_{}", namespace_index)),
-                    &mul_right,
-                )?;
-
-                namespace_index += 1;
-
-                Ok(sum)
-            };
-
         let line_0 = vec![
-            chooser(&[
-                self.board[0].clone(),
-                self.board[12].clone(),
-                self.board[0].clone(),
-                self.board[3].clone(),
-            ])?,
-            chooser(&[
-                self.board[4].clone(),
-                self.board[8].clone(),
-                self.board[1].clone(),
-                self.board[2].clone(),
-            ])?,
-            chooser(&[
-                self.board[8].clone(),
-                self.board[4].clone(),
-                self.board[2].clone(),
-                self.board[1].clone(),
-            ])?,
-            chooser(&[
-                self.board[12].clone(),
-                self.board[0].clone(),
-                self.board[3].clone(),
-                self.board[0].clone(),
-            ])?,
+            AllocatedNum::product_sum(
+                cs.namespace(|| "0"),
+                &[
+                    self.board[0].clone(),
+                    self.board[12].clone(),
+                    self.board[0].clone(),
+                    self.board[3].clone(),
+                ],
+                &self.direction,
+            )?,
+            AllocatedNum::product_sum(
+                cs.namespace(|| "1"),
+                &[
+                    self.board[4].clone(),
+                    self.board[8].clone(),
+                    self.board[1].clone(),
+                    self.board[2].clone(),
+                ],
+                &self.direction,
+            )?,
+            AllocatedNum::product_sum(
+                cs.namespace(|| "2"),
+                &[
+                    self.board[8].clone(),
+                    self.board[4].clone(),
+                    self.board[2].clone(),
+                    self.board[1].clone(),
+                ],
+                &self.direction,
+            )?,
+            AllocatedNum::product_sum(
+                cs.namespace(|| "3"),
+                &[
+                    self.board[12].clone(),
+                    self.board[0].clone(),
+                    self.board[3].clone(),
+                    self.board[0].clone(),
+                ],
+                &self.direction,
+            )?,
         ];
 
         let line_1 = vec![
-            chooser(&[
-                self.board[1].clone(),
-                self.board[13].clone(),
-                self.board[4].clone(),
-                self.board[7].clone(),
-            ])?,
-            chooser(&[
-                self.board[5].clone(),
-                self.board[9].clone(),
-                self.board[5].clone(),
-                self.board[6].clone(),
-            ])?,
-            chooser(&[
-                self.board[9].clone(),
-                self.board[5].clone(),
-                self.board[6].clone(),
-                self.board[5].clone(),
-            ])?,
-            chooser(&[
-                self.board[13].clone(),
-                self.board[1].clone(),
-                self.board[7].clone(),
-                self.board[4].clone(),
-            ])?,
+            AllocatedNum::product_sum(
+                cs.namespace(|| "4"),
+                &[
+                    self.board[1].clone(),
+                    self.board[13].clone(),
+                    self.board[4].clone(),
+                    self.board[7].clone(),
+                ],
+                &self.direction,
+            )?,
+            AllocatedNum::product_sum(
+                cs.namespace(|| "5"),
+                &[
+                    self.board[5].clone(),
+                    self.board[9].clone(),
+                    self.board[5].clone(),
+                    self.board[6].clone(),
+                ],
+                &self.direction,
+            )?,
+            AllocatedNum::product_sum(
+                cs.namespace(|| "6"),
+                &[
+                    self.board[9].clone(),
+                    self.board[5].clone(),
+                    self.board[6].clone(),
+                    self.board[5].clone(),
+                ],
+                &self.direction,
+            )?,
+            AllocatedNum::product_sum(
+                cs.namespace(|| "7"),
+                &[
+                    self.board[13].clone(),
+                    self.board[1].clone(),
+                    self.board[7].clone(),
+                    self.board[4].clone(),
+                ],
+                &self.direction,
+            )?,
         ];
 
         let line_2 = vec![
-            chooser(&[
-                self.board[2].clone(),
-                self.board[14].clone(),
-                self.board[8].clone(),
-                self.board[11].clone(),
-            ])?,
-            chooser(&[
-                self.board[6].clone(),
-                self.board[10].clone(),
-                self.board[9].clone(),
-                self.board[10].clone(),
-            ])?,
-            chooser(&[
-                self.board[10].clone(),
-                self.board[6].clone(),
-                self.board[10].clone(),
-                self.board[9].clone(),
-            ])?,
-            chooser(&[
-                self.board[14].clone(),
-                self.board[2].clone(),
-                self.board[11].clone(),
-                self.board[8].clone(),
-            ])?,
+            AllocatedNum::product_sum(
+                cs.namespace(|| "8"),
+                &[
+                    self.board[2].clone(),
+                    self.board[14].clone(),
+                    self.board[8].clone(),
+                    self.board[11].clone(),
+                ],
+                &self.direction,
+            )?,
+            AllocatedNum::product_sum(
+                cs.namespace(|| "9"),
+                &[
+                    self.board[6].clone(),
+                    self.board[10].clone(),
+                    self.board[9].clone(),
+                    self.board[10].clone(),
+                ],
+                &self.direction,
+            )?,
+            AllocatedNum::product_sum(
+                cs.namespace(|| "10"),
+                &[
+                    self.board[10].clone(),
+                    self.board[6].clone(),
+                    self.board[10].clone(),
+                    self.board[9].clone(),
+                ],
+                &self.direction,
+            )?,
+            AllocatedNum::product_sum(
+                cs.namespace(|| "11"),
+                &[
+                    self.board[14].clone(),
+                    self.board[2].clone(),
+                    self.board[11].clone(),
+                    self.board[8].clone(),
+                ],
+                &self.direction,
+            )?,
         ];
 
         let line_3 = vec![
-            chooser(&[
-                self.board[3].clone(),
-                self.board[15].clone(),
-                self.board[12].clone(),
-                self.board[15].clone(),
-            ])?,
-            chooser(&[
-                self.board[7].clone(),
-                self.board[11].clone(),
-                self.board[13].clone(),
-                self.board[14].clone(),
-            ])?,
-            chooser(&[
-                self.board[11].clone(),
-                self.board[7].clone(),
-                self.board[14].clone(),
-                self.board[13].clone(),
-            ])?,
-            chooser(&[
-                self.board[15].clone(),
-                self.board[3].clone(),
-                self.board[15].clone(),
-                self.board[12].clone(),
-            ])?,
+            AllocatedNum::product_sum(
+                cs.namespace(|| "12"),
+                &[
+                    self.board[3].clone(),
+                    self.board[15].clone(),
+                    self.board[12].clone(),
+                    self.board[15].clone(),
+                ],
+                &self.direction,
+            )?,
+            AllocatedNum::product_sum(
+                cs.namespace(|| "13"),
+                &[
+                    self.board[7].clone(),
+                    self.board[11].clone(),
+                    self.board[13].clone(),
+                    self.board[14].clone(),
+                ],
+                &self.direction,
+            )?,
+            AllocatedNum::product_sum(
+                cs.namespace(|| "14"),
+                &[
+                    self.board[11].clone(),
+                    self.board[7].clone(),
+                    self.board[14].clone(),
+                    self.board[13].clone(),
+                ],
+                &self.direction,
+            )?,
+            AllocatedNum::product_sum(
+                cs.namespace(|| "15"),
+                &[
+                    self.board[15].clone(),
+                    self.board[3].clone(),
+                    self.board[15].clone(),
+                    self.board[12].clone(),
+                ],
+                &self.direction,
+            )?,
         ];
 
         self.lines = vec![line_0, line_1, line_2, line_3];

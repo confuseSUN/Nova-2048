@@ -1,9 +1,7 @@
-use bellpepper_core::{
-    boolean::{AllocatedBit, Boolean},
-    num::AllocatedNum,
-    ConstraintSystem, SynthesisError,
-};
+use bellpepper_core::{boolean::Boolean, num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::PrimeField;
+
+use crate::NumConstraintSystem;
 
 pub struct SortByZero<F: PrimeField> {
     pub lines: Vec<Vec<AllocatedNum<F>>>,
@@ -35,34 +33,11 @@ impl<F: PrimeField> SortByZero<F> {
         let mut swap = |a: &AllocatedNum<F>,
                         b: &AllocatedNum<F>|
          -> Result<(AllocatedNum<F>, AllocatedNum<F>), SynthesisError> {
-            let a_val = a.get_value().unwrap();
-            let a_inv = a_val.invert().unwrap_or(F::ZERO);
-            let a_inv_var = AllocatedNum::alloc(
-                cs.namespace(|| format!("alloc_a_inv_{}", self.namespace_index)),
-                || Ok(a_inv),
+            let bit = a.is_equal_to_zero_bit(
+                cs.namespace(|| format!("a_is_equal_to_zero_bit{}", self.namespace_index)),
             )?;
 
-            let bit = if a_val.is_zero().into() { true } else { false };
-            let bit_var = AllocatedBit::alloc(
-                cs.namespace(|| format!("alloc_b_{}", self.namespace_index)),
-                Some(bit),
-            )?;
-
-            cs.enforce(
-                || format!("enforce_swap_0_{}", self.namespace_index),
-                |lc| lc + a_inv_var.get_variable() - a.get_variable(),
-                |lc| lc + CS::one(),
-                |lc| lc + bit_var.get_variable() - CS::one(),
-            );
-
-            cs.enforce(
-                || format!("enforce_swap_1_{}", self.namespace_index),
-                |lc| lc + a.get_variable(),
-                |lc| lc + bit_var.get_variable(),
-                |lc| lc,
-            );
-
-            let boolean = Boolean::Is(bit_var);
+            let boolean = Boolean::Is(bit);
             let (c, d) = AllocatedNum::conditionally_reverse(
                 cs.namespace(|| format!("conditionally_reverse_{}", self.namespace_index)),
                 a,
