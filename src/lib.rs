@@ -5,7 +5,6 @@ use ff::PrimeField;
 
 pub mod can_move;
 pub mod direction_chooser;
-pub mod game_2048;
 pub mod gen_next;
 pub mod merge;
 pub mod restore;
