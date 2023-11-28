@@ -126,6 +126,7 @@ mod test {
 
         let mut circuit = SortByZero::new(&[line_0_vars, line_1_vars, line_2_vars, line_3_vars], 0);
         circuit.synthesize(&mut cs).unwrap();
+        assert!(cs.is_satisfied());
 
         let mut sorted_lines = vec![];
         for x in circuit.sorted_lines {

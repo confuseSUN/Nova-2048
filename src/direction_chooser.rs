@@ -36,7 +36,7 @@ impl<F: PrimeField> DirectionChooser<F> {
         let sum_direction =
             AllocatedNum::sum(cs.namespace(|| "sum_of_direction"), &self.direction)?;
         cs.enforce(
-            || "enforce sum_direction equal to one",
+            || "enforce `sum_direction` is equal to one",
             |lc| lc,
             |lc| lc,
             |lc| lc + CS::one() - sum_direction.get_variable(),
@@ -267,6 +267,7 @@ mod test {
 
         let mut circuit = DirectionChooser::new(&board_vars, &direction);
         circuit.synthesize(&mut cs).unwrap();
+        assert!(cs.is_satisfied());
 
         let mut lines = vec![];
         for x in circuit.lines {
@@ -322,6 +323,7 @@ mod test {
 
         let mut circuit = DirectionChooser::new(&board_vars, &direction);
         circuit.synthesize(&mut cs).unwrap();
+        assert!(cs.is_satisfied());
 
         let mut lines = vec![];
         for x in circuit.lines {
@@ -377,6 +379,7 @@ mod test {
 
         let mut circuit = DirectionChooser::new(&board_vars, &direction);
         circuit.synthesize(&mut cs).unwrap();
+        assert!(cs.is_satisfied());
 
         let mut lines = vec![];
         for x in circuit.lines {
@@ -432,6 +435,7 @@ mod test {
 
         let mut circuit = DirectionChooser::new(&board_vars, &direction);
         circuit.synthesize(&mut cs).unwrap();
+        assert!(cs.is_satisfied());
 
         let mut lines = vec![];
         for x in circuit.lines {

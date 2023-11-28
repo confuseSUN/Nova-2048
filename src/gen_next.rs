@@ -52,16 +52,11 @@ impl<F: PrimeField> GenNext<F> {
         // A simple calculation for n=sum{old_board},
         //
         // todo! replace n=hash(old_board, direction, ...).
-        let mut n = self.old_board[0].clone();
-        for (i, x) in self.old_board.iter().skip(1).enumerate() {
-            n = n.add(cs.namespace(|| format!("sum_board_add_{}", i)), x)?;
-        }
-
+        let n = AllocatedNum::sum(cs.namespace(|| "sum_of_board"), &self.old_board)?;
         let n_bytes = n.get_value().unwrap().to_repr();
         let n_big = BigUint::from_bytes_le(n_bytes.as_ref());
 
         let position = {
-            // let m = num_candidates.get_value().unwrap();
             let m_bytes = num_candidates.get_value().unwrap().to_repr();
             let m_big: BigUint = BigUint::from_bytes_le(m_bytes.as_ref());
 
@@ -153,10 +148,7 @@ impl<F: PrimeField> GenNext<F> {
         }
 
         // Enforce that the sum of bits equals 1,
-        let mut sum_bits = bits[0].clone();
-        for (i, x) in bits.iter().skip(1).enumerate() {
-            sum_bits = sum_bits.add(cs.namespace(|| format!("sum_bits_{}", i)), x)?
-        }
+        let sum_bits = AllocatedNum::sum(cs.namespace(|| "sum_of_bits"), &bits)?;
         cs.enforce(
             || "enfore_(sum_bits = 1)",
             |lc| lc,
@@ -223,6 +215,7 @@ mod test {
 
         let mut circuit = GenNext::new(&board_vars);
         circuit.synthesize(&mut cs).unwrap();
+        assert!(cs.is_satisfied());
 
         let mut new_board: Vec<_> = vec![];
         for x in circuit.new_board {

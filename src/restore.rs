@@ -1,6 +1,8 @@
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::PrimeField;
 
+use crate::NumConstraintSystem;
+
 pub struct Restore<F: PrimeField> {
     pub lines: Vec<Vec<AllocatedNum<F>>>,
 
@@ -25,162 +27,181 @@ impl<F: PrimeField> Restore<F> {
         &mut self,
         cs: &mut CS,
     ) -> Result<(), SynthesisError> {
-        let up = self.direction[0].clone();
-        let down = self.direction[1].clone();
-        let left = self.direction[2].clone();
-        let right = self.direction[3].clone();
+        let board_0 = AllocatedNum::product_sum(
+            cs.namespace(|| "restore_0"),
+            &[
+                self.lines[0][0].clone(),
+                self.lines[0][3].clone(),
+                self.lines[0][0].clone(),
+                self.lines[0][3].clone(),
+            ],
+            &self.direction,
+        )?;
 
-        let mut namespace_index = 0;
+        let board_1 = AllocatedNum::product_sum(
+            cs.namespace(|| "restore_1"),
+            &[
+                self.lines[1][0].clone(),
+                self.lines[1][3].clone(),
+                self.lines[0][1].clone(),
+                self.lines[0][2].clone(),
+            ],
+            &self.direction,
+        )?;
 
-        // The out = wires_in[0] * up +  wires_in[1] * down +  wires_in[2] * left +  wires_in[3] * right.
-        let mut chooser =
-            |wires_in: &[AllocatedNum<F>; 4]| -> Result<AllocatedNum<F>, SynthesisError> {
-                let mul_up = wires_in[0].mul(
-                    cs.namespace(|| format!("restore_up_{}", namespace_index)),
-                    &up,
-                )?;
-                let mul_down = wires_in[1].mul(
-                    cs.namespace(|| format!("restore_down_{}", namespace_index)),
-                    &down,
-                )?;
-                let mul_left = wires_in[2].mul(
-                    cs.namespace(|| format!("restore_left_{}", namespace_index)),
-                    &left,
-                )?;
-                let mul_right = wires_in[3].mul(
-                    cs.namespace(|| format!("restore_right_{}", namespace_index)),
-                    &right,
-                )?;
+        let board_2 = AllocatedNum::product_sum(
+            cs.namespace(|| "restore_2"),
+            &[
+                self.lines[2][0].clone(),
+                self.lines[2][3].clone(),
+                self.lines[0][2].clone(),
+                self.lines[0][1].clone(),
+            ],
+            &self.direction,
+        )?;
 
-                let mut sum = mul_up.add(
-                    cs.namespace(|| format!("restore_up_add_down_{}", namespace_index)),
-                    &mul_down,
-                )?;
-                sum = sum.add(
-                    cs.namespace(|| format!("restore_add_left_{}", namespace_index)),
-                    &mul_left,
-                )?;
-                sum = sum.add(
-                    cs.namespace(|| format!("restore_add_right_{}", namespace_index)),
-                    &mul_right,
-                )?;
+        let board_3 = AllocatedNum::product_sum(
+            cs.namespace(|| "restore_3"),
+            &[
+                self.lines[3][0].clone(),
+                self.lines[3][3].clone(),
+                self.lines[0][3].clone(),
+                self.lines[0][0].clone(),
+            ],
+            &self.direction,
+        )?;
 
-                namespace_index += 1;
+        let board_4 = AllocatedNum::product_sum(
+            cs.namespace(|| "restore_4"),
+            &[
+                self.lines[0][1].clone(),
+                self.lines[0][2].clone(),
+                self.lines[1][0].clone(),
+                self.lines[1][3].clone(),
+            ],
+            &self.direction,
+        )?;
 
-                Ok(sum)
-            };
+        let board_5 = AllocatedNum::product_sum(
+            cs.namespace(|| "restore_5"),
+            &[
+                self.lines[1][1].clone(),
+                self.lines[1][2].clone(),
+                self.lines[1][1].clone(),
+                self.lines[1][2].clone(),
+            ],
+            &self.direction,
+        )?;
 
-        let board_0 = chooser(&[
-            self.lines[0][0].clone(),
-            self.lines[0][3].clone(),
-            self.lines[0][0].clone(),
-            self.lines[0][3].clone(),
-        ])?;
+        let board_6 = AllocatedNum::product_sum(
+            cs.namespace(|| "restore_6"),
+            &[
+                self.lines[2][1].clone(),
+                self.lines[2][2].clone(),
+                self.lines[1][2].clone(),
+                self.lines[1][1].clone(),
+            ],
+            &self.direction,
+        )?;
 
-        let board_1 = chooser(&[
-            self.lines[1][0].clone(),
-            self.lines[1][3].clone(),
-            self.lines[0][1].clone(),
-            self.lines[0][2].clone(),
-        ])?;
+        let board_7 = AllocatedNum::product_sum(
+            cs.namespace(|| "restore_7"),
+            &[
+                self.lines[3][1].clone(),
+                self.lines[3][2].clone(),
+                self.lines[1][3].clone(),
+                self.lines[1][0].clone(),
+            ],
+            &self.direction,
+        )?;
 
-        let board_2 = chooser(&[
-            self.lines[2][0].clone(),
-            self.lines[2][3].clone(),
-            self.lines[0][2].clone(),
-            self.lines[0][1].clone(),
-        ])?;
+        let board_8 = AllocatedNum::product_sum(
+            cs.namespace(|| "restore_8"),
+            &[
+                self.lines[0][2].clone(),
+                self.lines[0][1].clone(),
+                self.lines[2][0].clone(),
+                self.lines[2][3].clone(),
+            ],
+            &self.direction,
+        )?;
 
-        let board_3 = chooser(&[
-            self.lines[3][0].clone(),
-            self.lines[3][3].clone(),
-            self.lines[0][3].clone(),
-            self.lines[0][0].clone(),
-        ])?;
+        let board_9 = AllocatedNum::product_sum(
+            cs.namespace(|| "restore_9"),
+            &[
+                self.lines[1][2].clone(),
+                self.lines[1][1].clone(),
+                self.lines[2][1].clone(),
+                self.lines[2][2].clone(),
+            ],
+            &self.direction,
+        )?;
 
-        let board_4 = chooser(&[
-            self.lines[0][1].clone(),
-            self.lines[0][2].clone(),
-            self.lines[1][0].clone(),
-            self.lines[1][3].clone(),
-        ])?;
+        let board_10 = AllocatedNum::product_sum(
+            cs.namespace(|| "restore_10"),
+            &[
+                self.lines[2][2].clone(),
+                self.lines[2][1].clone(),
+                self.lines[2][2].clone(),
+                self.lines[2][1].clone(),
+            ],
+            &self.direction,
+        )?;
 
-        let board_5 = chooser(&[
-            self.lines[1][1].clone(),
-            self.lines[1][2].clone(),
-            self.lines[1][1].clone(),
-            self.lines[1][2].clone(),
-        ])?;
+        let board_11 = AllocatedNum::product_sum(
+            cs.namespace(|| "restore_11"),
+            &[
+                self.lines[3][2].clone(),
+                self.lines[3][1].clone(),
+                self.lines[2][3].clone(),
+                self.lines[2][0].clone(),
+            ],
+            &self.direction,
+        )?;
 
-        let board_6 = chooser(&[
-            self.lines[2][1].clone(),
-            self.lines[2][2].clone(),
-            self.lines[1][2].clone(),
-            self.lines[1][1].clone(),
-        ])?;
+        let board_12 = AllocatedNum::product_sum(
+            cs.namespace(|| "restore_12"),
+            &[
+                self.lines[0][3].clone(),
+                self.lines[0][0].clone(),
+                self.lines[3][0].clone(),
+                self.lines[3][3].clone(),
+            ],
+            &self.direction,
+        )?;
 
-        let board_7 = chooser(&[
-            self.lines[3][1].clone(),
-            self.lines[3][2].clone(),
-            self.lines[1][3].clone(),
-            self.lines[1][0].clone(),
-        ])?;
+        let board_13 = AllocatedNum::product_sum(
+            cs.namespace(|| "restore_13"),
+            &[
+                self.lines[1][3].clone(),
+                self.lines[1][0].clone(),
+                self.lines[3][1].clone(),
+                self.lines[3][2].clone(),
+            ],
+            &self.direction,
+        )?;
 
-        let board_8 = chooser(&[
-            self.lines[0][2].clone(),
-            self.lines[0][1].clone(),
-            self.lines[2][0].clone(),
-            self.lines[2][3].clone(),
-        ])?;
+        let board_14 = AllocatedNum::product_sum(
+            cs.namespace(|| "restore_14"),
+            &[
+                self.lines[2][3].clone(),
+                self.lines[2][0].clone(),
+                self.lines[3][2].clone(),
+                self.lines[3][1].clone(),
+            ],
+            &self.direction,
+        )?;
 
-        let board_9 = chooser(&[
-            self.lines[1][2].clone(),
-            self.lines[1][1].clone(),
-            self.lines[2][1].clone(),
-            self.lines[2][2].clone(),
-        ])?;
-
-        let board_10 = chooser(&[
-            self.lines[2][2].clone(),
-            self.lines[2][1].clone(),
-            self.lines[2][2].clone(),
-            self.lines[2][1].clone(),
-        ])?;
-
-        let board_11 = chooser(&[
-            self.lines[3][2].clone(),
-            self.lines[3][1].clone(),
-            self.lines[2][3].clone(),
-            self.lines[2][0].clone(),
-        ])?;
-
-        let board_12 = chooser(&[
-            self.lines[0][3].clone(),
-            self.lines[0][0].clone(),
-            self.lines[3][0].clone(),
-            self.lines[3][3].clone(),
-        ])?;
-
-        let board_13 = chooser(&[
-            self.lines[1][3].clone(),
-            self.lines[1][0].clone(),
-            self.lines[3][1].clone(),
-            self.lines[3][2].clone(),
-        ])?;
-
-        let board_14 = chooser(&[
-            self.lines[2][3].clone(),
-            self.lines[2][0].clone(),
-            self.lines[3][2].clone(),
-            self.lines[3][1].clone(),
-        ])?;
-
-        let board_15 = chooser(&[
-            self.lines[3][3].clone(),
-            self.lines[3][0].clone(),
-            self.lines[3][3].clone(),
-            self.lines[3][0].clone(),
-        ])?;
+        let board_15 = AllocatedNum::product_sum(
+            cs.namespace(|| "restore_15"),
+            &[
+                self.lines[3][3].clone(),
+                self.lines[3][0].clone(),
+                self.lines[3][3].clone(),
+                self.lines[3][0].clone(),
+            ],
+            &self.direction,
+        )?;
 
         self.board = vec![
             board_0, board_1, board_2, board_3, board_4, board_5, board_6, board_7, board_8,
@@ -239,23 +260,24 @@ mod test {
 
         let direction = vec![up_var, down_var, left_var, right_var];
 
-        let mut circuit_0 = DirectionChooser::new(&board_vars, &direction);
-        circuit_0.synthesize(&mut cs).unwrap();
+        let mut step_0 = DirectionChooser::new(&board_vars, &direction);
+        step_0.synthesize(&mut cs).unwrap();
 
-        let mut circuit_1 = SortByZero::new(&circuit_0.lines, 0);
-        circuit_1.synthesize(&mut cs).unwrap();
+        let mut step_1 = SortByZero::new(&step_0.lines, 0);
+        step_1.synthesize(&mut cs).unwrap();
 
-        let mut circuit_2 = Merge::new(&circuit_1.sorted_lines);
-        circuit_2.synthesize(&mut cs).unwrap();
+        let mut step_2 = Merge::new(&step_1.sorted_lines);
+        step_2.synthesize(&mut cs).unwrap();
 
-        let mut circuit_3 = SortByZero::new(&circuit_2.merged_lines, circuit_1.namespace_index);
-        circuit_3.synthesize(&mut cs).unwrap();
+        let mut step_3 = SortByZero::new(&step_2.merged_lines, step_1.namespace_index);
+        step_3.synthesize(&mut cs).unwrap();
 
-        let mut circuit_4 = Restore::new(&circuit_3.sorted_lines, &direction);
-        circuit_4.synthesize(&mut cs).unwrap();
+        let mut step_4 = Restore::new(&step_3.sorted_lines, &direction);
+        step_4.synthesize(&mut cs).unwrap();
+        assert!(cs.is_satisfied());
 
         let mut board: Vec<_> = vec![];
-        for x in circuit_4.board {
+        for x in step_4.board {
             board.push(x.get_value().unwrap())
         }
 
@@ -306,23 +328,24 @@ mod test {
 
         let direction = vec![up_var, down_var, left_var, right_var];
 
-        let mut circuit_0 = DirectionChooser::new(&board_vars, &direction);
-        circuit_0.synthesize(&mut cs).unwrap();
+        let mut step_0 = DirectionChooser::new(&board_vars, &direction);
+        step_0.synthesize(&mut cs).unwrap();
 
-        let mut circuit_1 = SortByZero::new(&circuit_0.lines, 0);
-        circuit_1.synthesize(&mut cs).unwrap();
+        let mut step_1 = SortByZero::new(&step_0.lines, 0);
+        step_1.synthesize(&mut cs).unwrap();
 
-        let mut circuit_2 = Merge::new(&circuit_1.sorted_lines);
-        circuit_2.synthesize(&mut cs).unwrap();
+        let mut step_2 = Merge::new(&step_1.sorted_lines);
+        step_2.synthesize(&mut cs).unwrap();
 
-        let mut circuit_3 = SortByZero::new(&circuit_2.merged_lines, circuit_1.namespace_index);
-        circuit_3.synthesize(&mut cs).unwrap();
+        let mut step_3 = SortByZero::new(&step_2.merged_lines, step_1.namespace_index);
+        step_3.synthesize(&mut cs).unwrap();
 
-        let mut circuit_4 = Restore::new(&circuit_3.sorted_lines, &direction);
-        circuit_4.synthesize(&mut cs).unwrap();
+        let mut step_4 = Restore::new(&step_3.sorted_lines, &direction);
+        step_4.synthesize(&mut cs).unwrap();
+        assert!(cs.is_satisfied());
 
         let mut board: Vec<_> = vec![];
-        for x in circuit_4.board {
+        for x in step_4.board {
             board.push(x.get_value().unwrap())
         }
 
@@ -372,23 +395,24 @@ mod test {
 
         let direction = vec![up_var, down_var, left_var, right_var];
 
-        let mut circuit_0 = DirectionChooser::new(&board_vars, &direction);
-        circuit_0.synthesize(&mut cs).unwrap();
+        let mut step_0 = DirectionChooser::new(&board_vars, &direction);
+        step_0.synthesize(&mut cs).unwrap();
 
-        let mut circuit_1 = SortByZero::new(&circuit_0.lines, 0);
-        circuit_1.synthesize(&mut cs).unwrap();
+        let mut step_1 = SortByZero::new(&step_0.lines, 0);
+        step_1.synthesize(&mut cs).unwrap();
 
-        let mut circuit_2 = Merge::new(&circuit_1.sorted_lines);
-        circuit_2.synthesize(&mut cs).unwrap();
+        let mut step_2 = Merge::new(&step_1.sorted_lines);
+        step_2.synthesize(&mut cs).unwrap();
 
-        let mut circuit_3 = SortByZero::new(&circuit_2.merged_lines, circuit_1.namespace_index);
-        circuit_3.synthesize(&mut cs).unwrap();
+        let mut step_3 = SortByZero::new(&step_2.merged_lines, step_1.namespace_index);
+        step_3.synthesize(&mut cs).unwrap();
 
-        let mut circuit_4 = Restore::new(&circuit_3.sorted_lines, &direction);
-        circuit_4.synthesize(&mut cs).unwrap();
+        let mut step_4 = Restore::new(&step_3.sorted_lines, &direction);
+        step_4.synthesize(&mut cs).unwrap();
+        assert!(cs.is_satisfied());
 
         let mut board: Vec<_> = vec![];
-        for x in circuit_4.board {
+        for x in step_4.board {
             board.push(x.get_value().unwrap())
         }
 
@@ -438,23 +462,24 @@ mod test {
 
         let direction = vec![up_var, down_var, left_var, right_var];
 
-        let mut circuit_0 = DirectionChooser::new(&board_vars, &direction);
-        circuit_0.synthesize(&mut cs).unwrap();
+        let mut step_0 = DirectionChooser::new(&board_vars, &direction);
+        step_0.synthesize(&mut cs).unwrap();
 
-        let mut circuit_1 = SortByZero::new(&circuit_0.lines, 0);
-        circuit_1.synthesize(&mut cs).unwrap();
+        let mut step_1 = SortByZero::new(&step_0.lines, 0);
+        step_1.synthesize(&mut cs).unwrap();
 
-        let mut circuit_2 = Merge::new(&circuit_1.sorted_lines);
-        circuit_2.synthesize(&mut cs).unwrap();
+        let mut step_2 = Merge::new(&step_1.sorted_lines);
+        step_2.synthesize(&mut cs).unwrap();
 
-        let mut circuit_3 = SortByZero::new(&circuit_2.merged_lines, circuit_1.namespace_index);
-        circuit_3.synthesize(&mut cs).unwrap();
+        let mut step_3 = SortByZero::new(&step_2.merged_lines, step_1.namespace_index);
+        step_3.synthesize(&mut cs).unwrap();
 
-        let mut circuit_4 = Restore::new(&circuit_3.sorted_lines, &direction);
-        circuit_4.synthesize(&mut cs).unwrap();
+        let mut step_4 = Restore::new(&step_3.sorted_lines, &direction);
+        step_4.synthesize(&mut cs).unwrap();
+        assert!(cs.is_satisfied());
 
         let mut board: Vec<_> = vec![];
-        for x in circuit_4.board {
+        for x in step_4.board {
             board.push(x.get_value().unwrap())
         }
 
