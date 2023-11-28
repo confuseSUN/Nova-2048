@@ -3,8 +3,8 @@ use ff::PrimeField;
 use nova_snark::traits::circuit::StepCircuit;
 
 use crate::{
-    direction_chooser::DirectionChooser, gen_next::GenNext, merge::Merge, restore::Restore,
-    sort::SortByZero,
+    can_move::CanMove, direction_chooser::DirectionChooser, gen_next::GenNext, merge::Merge,
+    restore::Restore, sort::SortByZero,
 };
 
 #[derive(Debug, Clone)]
@@ -31,6 +31,7 @@ impl<F: PrimeField> StepCircuit<F> for Game2048Circuit<F> {
         z: &[AllocatedNum<F>],
     ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
         let mut board = z.to_vec();
+
         for i in 0..self.directions.len() {
             let mut direction = Vec::new();
             for (j, x) in self.directions[i].iter().enumerate() {
@@ -42,24 +43,27 @@ impl<F: PrimeField> StepCircuit<F> for Game2048Circuit<F> {
             }
 
             let mut step_1 = DirectionChooser::new(&board, &direction);
-            step_1.synthesize(cs.namespace(|| "direction chooser"))?;
+            step_1.synthesize(cs.namespace(|| "step_1"))?;
 
             let mut step_2 = SortByZero::new(&step_1.lines, 0);
-            step_2.synthesize(cs.namespace(|| "sort"))?;
+            step_2.synthesize(cs.namespace(|| "step_2"))?;
 
             let mut step_3 = Merge::new(&step_2.sorted_lines);
-            step_3.synthesize(cs.namespace(|| "merge"))?;
+            step_3.synthesize(cs.namespace(|| "step_3"))?;
 
             let mut step_4 = SortByZero::new(&step_3.merged_lines, step_2.namespace_index);
-            step_4.synthesize(cs.namespace(|| "sort again"))?;
+            step_4.synthesize(cs.namespace(|| "step_4"))?;
 
             let mut step_5 = Restore::new(&step_4.sorted_lines, &direction);
-            step_5.synthesize(cs.namespace(|| "restore"))?;
+            step_5.synthesize(cs.namespace(|| "step_5"))?;
 
-            let mut step_6 = GenNext::new(&step_5.board);
-            step_6.synthesize(cs.namespace(|| "gen next"))?;
+            let step_6 = CanMove::new(&board, &step_5.board);
+            let moveable = step_6.synthesize(cs.namespace(|| "step_6"))?;
 
-            board = step_6.new_board;
+            let mut step_7 = GenNext::new(&step_5.board, &moveable);
+            step_7.synthesize(cs.namespace(|| "step_7"))?;
+
+            board = step_7.new_board;
 
             // println!("---------");
             // use num_bigint::BigUint;
@@ -102,13 +106,7 @@ mod test {
 
     #[test]
     fn test_2048() {
-        let directions = vec![
-            [LEFT, RIGHT, DOWN, LEFT, UP, LEFT, UP, UP, RIGHT, UP],
-            [LEFT, LEFT, UP, LEFT, UP, LEFT, UP, UP, LEFT, LEFT],
-            [UP, UP, RIGHT, UP, UP, LEFT, LEFT, UP, LEFT, UP],
-            [UP, UP, LEFT, LEFT, RIGHT, LEFT, UP, LEFT, UP, LEFT],
-            [LEFT, DOWN, LEFT, UP, UP, LEFT, LEFT, UP, UP, UP],
-        ];
+        let directions = vec![[UP; 50], [DOWN; 50], [LEFT; 50], [RIGHT; 50]];
 
         let mut circuits_primary = vec![];
         for chunks in directions.iter() {

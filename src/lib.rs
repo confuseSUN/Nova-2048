@@ -3,6 +3,7 @@ use bellpepper_core::{
 };
 use ff::PrimeField;
 
+pub mod can_move;
 pub mod direction_chooser;
 pub mod game_2048;
 pub mod gen_next;
@@ -11,41 +12,53 @@ pub mod restore;
 pub mod sort;
 
 pub trait NumConstraintSystem<F: PrimeField> {
-    type Output;
+    type Output: NumConstraintSystem<F>;
 
-    ///  Return the "zero" variable.
+    /// Return the "zero" variable.
     fn zero<CS: ConstraintSystem<F>>(cs: CS) -> Result<Self::Output, SynthesisError>;
 
-    ///  Return a variable that equals 1 if and only if `self` == `other`,
+    /// Return a variable that equals 1 if and only if `self` == `other`,
     /// otherwise equals 0.
     fn is_equal<CS: ConstraintSystem<F>>(
         &self,
         cs: CS,
-        other: &Self,
+        other: &Self::Output,
     ) -> Result<Self::Output, SynthesisError>;
 
-    ///  Return a variable that equals 1 if and only if `value` == 0,
+    /// Return a variable that equals 1 if and only if `value` == 0,
     /// otherwise equals 0.
     fn is_equal_to_zero<CS: ConstraintSystem<F>>(
         &self,
-        cs: CS,
-    ) -> Result<Self::Output, SynthesisError>;
+        mut cs: CS,
+    ) -> Result<Self::Output, SynthesisError> {
+        let zero = Self::zero(cs.namespace(|| "zero"))?;
+        let bit = Self::is_equal(&self, cs.namespace(|| "is_equal_to_zero"), &zero)?;
 
-    ///  Return a boolean variable that equals 1 if and only if `value` == 0,
+        Ok(bit)
+    }
+
+    /// Return a boolean variable that equals 1 if and only if `value` == 0,
     /// otherwise equals 0.
     fn is_equal_to_zero_bit<CS: ConstraintSystem<F>>(
         &self,
         cs: CS,
     ) -> Result<AllocatedBit, SynthesisError>;
 
+    /// Return a boolean variable that equals 1 if and only if `value` != 0,
+    /// otherwise equals 0.
+    fn is_not_equal_to_zero<CS: ConstraintSystem<F>>(
+        &self,
+        cs: CS,
+    ) -> Result<Self::Output, SynthesisError>;
+
     /// Subtracts `other` from `self`
     fn sub<CS: ConstraintSystem<F>>(
         &self,
         cs: CS,
-        other: &Self,
+        other: &Self::Output,
     ) -> Result<Self::Output, SynthesisError>;
 
-    ///  Apply a boolean constraint.
+    /// Apply a boolean constraint.
     fn apply_bool_constraint<CS: ConstraintSystem<F>>(&self, cs: CS);
 
     /// Sums up a collection of variables.
@@ -63,10 +76,15 @@ pub trait NumConstraintSystem<F: PrimeField> {
 
     /// Multiplies two collections of variables and returns their sum.
     fn product_sum<CS: ConstraintSystem<F>>(
-        cs: CS,
+        mut cs: CS,
         a: &[Self::Output],
         b: &[Self::Output],
-    ) -> Result<Self::Output, SynthesisError>;
+    ) -> Result<Self::Output, SynthesisError> {
+        let product = Self::product(cs.namespace(|| "product"), a, b)?;
+        let sum = Self::sum(cs.namespace(|| "sum of product"), &product)?;
+
+        Ok(sum)
+    }
 }
 
 impl<F: PrimeField> NumConstraintSystem<F> for AllocatedNum<F> {
@@ -117,16 +135,6 @@ impl<F: PrimeField> NumConstraintSystem<F> for AllocatedNum<F> {
         Ok(bit_var)
     }
 
-    fn is_equal_to_zero<CS: ConstraintSystem<F>>(
-        &self,
-        mut cs: CS,
-    ) -> Result<Self::Output, SynthesisError> {
-        let zero = Self::zero(cs.namespace(|| "zero"))?;
-        let bit = Self::is_equal(&self, cs.namespace(|| "is_equal_to_zero"), &zero)?;
-
-        Ok(bit)
-    }
-
     fn is_equal_to_zero_bit<CS: ConstraintSystem<F>>(
         &self,
         mut cs: CS,
@@ -154,6 +162,38 @@ impl<F: PrimeField> NumConstraintSystem<F> for AllocatedNum<F> {
             |lc| lc + self.get_variable(),
             |lc| lc + bit_var.get_variable(),
             |lc| lc,
+        );
+
+        Ok(bit_var)
+    }
+
+    fn is_not_equal_to_zero<CS: ConstraintSystem<F>>(
+        &self,
+        mut cs: CS,
+    ) -> Result<Self, SynthesisError> {
+        let val = self.get_value().unwrap_or(F::ZERO);
+        let bit = if val.is_zero().into() {
+            F::ZERO
+        } else {
+            F::ONE
+        };
+        let bit_var = AllocatedNum::alloc(cs.namespace(|| "alloc_bit"), || Ok(bit))?;
+
+        let inv = val.invert().unwrap_or(F::ZERO);
+        let inv_var = AllocatedNum::alloc(cs.namespace(|| "alloc_inv"), || Ok(inv))?;
+
+        cs.enforce(
+            || "enforce_(val * inv_var = bit)",
+            |lc| lc + self.get_variable(),
+            |lc| lc + inv_var.get_variable(),
+            |lc| lc + bit_var.get_variable(),
+        );
+
+        cs.enforce(
+            || "enforce_(val * bit_var = val)",
+            |lc| lc + self.get_variable(),
+            |lc| lc + bit_var.get_variable(),
+            |lc| lc + self.get_variable(),
         );
 
         Ok(bit_var)
@@ -231,16 +271,5 @@ impl<F: PrimeField> NumConstraintSystem<F> for AllocatedNum<F> {
         }
 
         Ok(result)
-    }
-
-    fn product_sum<CS: ConstraintSystem<F>>(
-        mut cs: CS,
-        a: &[Self::Output],
-        b: &[Self::Output],
-    ) -> Result<Self::Output, SynthesisError> {
-        let product = Self::product(cs.namespace(|| "product"), a, b)?;
-        let sum = Self::sum(cs.namespace(|| "sum of product"), &product)?;
-
-        Ok(sum)
     }
 }

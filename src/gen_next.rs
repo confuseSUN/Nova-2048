@@ -8,15 +8,18 @@ use crate::NumConstraintSystem;
 pub struct GenNext<F: PrimeField> {
     pub old_board: Vec<AllocatedNum<F>>,
 
+    pub moveable_flag: AllocatedNum<F>,
+
     pub new_board: Vec<AllocatedNum<F>>,
 }
 
 impl<F: PrimeField> GenNext<F> {
-    pub fn new(old_board: &[AllocatedNum<F>]) -> Self {
+    pub fn new(old_board: &[AllocatedNum<F>], moveable_flag: &AllocatedNum<F>) -> Self {
         assert_eq!(old_board.len(), 16);
 
         Self {
             old_board: old_board.to_vec(),
+            moveable_flag: moveable_flag.clone(),
             new_board: vec![],
         }
     }
@@ -56,6 +59,57 @@ impl<F: PrimeField> GenNext<F> {
         n = n.add(cs.namespace(|| "add_num_candidates"), &num_candidates)?;
         let n_bytes = n.get_value().unwrap_or(F::ZERO).to_repr();
         let n_big = BigUint::from_bytes_le(n_bytes.as_ref());
+
+        let game_over_flag = {
+            // If `num_candidates` is 0, the game is over, and `game_over_flag` is set to 0.
+            // If `num_candidates` is not 0, the game is not over, and `game_over_flag` is set to 1.
+            let game_over_flag =
+                num_candidates.is_not_equal_to_zero(cs.namespace(|| "game_over_flag"))?;
+
+            // If game over, set `candidates[0]` to 1 to keep the game running smoothly.
+            // In this case, `new_number` will be 0, so the board state will not change.
+            let tmp = if game_over_flag
+                .get_value()
+                .unwrap_or(F::ZERO)
+                .is_zero()
+                .into()
+            {
+                F::ONE
+            } else {
+                candidates[0].get_value().unwrap()
+            };
+            let tmp_var = AllocatedNum::alloc(cs.namespace(|| "tmp_0"), || Ok(tmp))?;
+            cs.enforce(
+                || "enfore_(game_over_flag * candidates[0] = tmp + game_over_flag - 1)",
+                |lc| lc + game_over_flag.get_variable(),
+                |lc| lc + candidates[0].get_variable(),
+                |lc| lc + tmp_var.get_variable() + game_over_flag.get_variable() - CS::one(),
+            );
+            candidates[0] = tmp_var;
+
+            // If game over, set `num_candidates` to 1 to keep the game running smoothly.
+            // In this case, `new_number` will be 0, so the board state will not change.
+            let tmp = if game_over_flag
+                .get_value()
+                .unwrap_or(F::ZERO)
+                .is_zero()
+                .into()
+            {
+                F::ONE
+            } else {
+                num_candidates.get_value().unwrap()
+            };
+            let tmp_var = AllocatedNum::alloc(cs.namespace(|| "tmp_1"), || Ok(tmp))?;
+            cs.enforce(
+                || "enfore_(game_over_flag * num_candidates = tmp + game_over_flag - 1)",
+                |lc| lc + game_over_flag.get_variable(),
+                |lc| lc + num_candidates.get_variable(),
+                |lc| lc + tmp_var.get_variable() + game_over_flag.get_variable() - CS::one(),
+            );
+            num_candidates = tmp_var;
+
+            game_over_flag
+        };
 
         let position = {
             let m_bytes = num_candidates.get_value().unwrap_or(F::ONE).to_repr();
@@ -119,7 +173,7 @@ impl<F: PrimeField> GenNext<F> {
             //
             // So the new_number = 2 * (remainder +1).
             let new_number = remainder.add(F::ONE).mul(F::from(2));
-            let new_number_var =
+            let mut new_number_var =
                 AllocatedNum::alloc(cs.namespace(|| "alloc_new_number"), || Ok(new_number))?;
             cs.enforce(
                 || "enfore_(2 * (remainder +1))",
@@ -127,6 +181,11 @@ impl<F: PrimeField> GenNext<F> {
                 |lc| lc + CS::one() + CS::one(),
                 |lc| lc + new_number_var.get_variable(),
             );
+
+            new_number_var =
+                new_number_var.mul(cs.namespace(|| "mul_moveable"), &self.moveable_flag)?;
+            new_number_var =
+                new_number_var.mul(cs.namespace(|| "mul_game_over"), &game_over_flag)?;
 
             new_number_var
         };
@@ -193,6 +252,7 @@ mod test {
     #[test]
     fn test_gen_next() {
         let zero = Fr::ZERO;
+        let one = Fr::ONE;
         let two = Fr::from(2);
         let four = Fr::from(4);
         let eight = Fr::from(8);
@@ -214,7 +274,9 @@ mod test {
             );
         }
 
-        let mut circuit = GenNext::new(&board_vars);
+        let moveable = AllocatedNum::alloc(cs.namespace(|| "moveable"), || Ok(one)).unwrap();
+
+        let mut circuit = GenNext::new(&board_vars, &moveable);
         circuit.synthesize(&mut cs).unwrap();
         assert!(cs.is_satisfied());
 
@@ -232,6 +294,46 @@ mod test {
                 four,  eight, zero,  zero,
                 two,   four,  eight, zero,
             ]
+        );
+    }
+
+    #[test]
+    fn test_game_over() {
+        let one = Fr::ONE;
+        let four = Fr::from(4);
+
+        #[rustfmt::skip]
+        let board = vec![
+            four,  four,  four,  four,
+            four,  four,  four,  four,
+            four,  four,  four,  four,
+            four,  four,  four,  four,
+        ];
+
+        let mut cs = TestConstraintSystem::<Fr>::new();
+
+        let mut board_vars = Vec::new();
+        for (i, x) in board.iter().enumerate() {
+            board_vars.push(
+                AllocatedNum::alloc(cs.namespace(|| format!("board_{i}")), || Ok(*x)).unwrap(),
+            );
+        }
+
+        let moveable = AllocatedNum::alloc(cs.namespace(|| "moveable"), || Ok(one)).unwrap();
+
+        let mut circuit = GenNext::new(&board_vars, &moveable);
+        circuit.synthesize(&mut cs).unwrap();
+        assert!(cs.is_satisfied());
+
+        let mut new_board: Vec<_> = vec![];
+        for x in circuit.new_board {
+            new_board.push(x.get_value().unwrap())
+        }
+
+        #[rustfmt::skip]
+        assert_eq!(
+            new_board,
+            board
         );
     }
 }
