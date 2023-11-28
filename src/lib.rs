@@ -4,7 +4,7 @@ use bellpepper_core::{
 use ff::PrimeField;
 
 pub mod direction_chooser;
-pub mod game;
+pub mod game_2048;
 pub mod gen_next;
 pub mod merge;
 pub mod restore;
@@ -90,7 +90,10 @@ impl<F: PrimeField> NumConstraintSystem<F> for AllocatedNum<F> {
         mut cs: CS,
         other: &Self,
     ) -> Result<Self::Output, SynthesisError> {
-        let diff = self.get_value().unwrap().sub(other.get_value().unwrap());
+        let diff = self
+            .get_value()
+            .unwrap_or(F::ZERO)
+            .sub(other.get_value().unwrap_or(F::ZERO));
         let diff_inv = diff.invert().unwrap_or(F::ZERO);
         let diff_inv_var = AllocatedNum::alloc(cs.namespace(|| "alloc_diff_inv"), || Ok(diff_inv))?;
 
@@ -128,8 +131,12 @@ impl<F: PrimeField> NumConstraintSystem<F> for AllocatedNum<F> {
         &self,
         mut cs: CS,
     ) -> Result<AllocatedBit, SynthesisError> {
-        let val = self.get_value().unwrap();
-        let inv = self.get_value().unwrap().invert().unwrap_or(F::ZERO);
+        let val = self.get_value().unwrap_or(F::ZERO);
+        let inv = self
+            .get_value()
+            .unwrap_or(F::ZERO)
+            .invert()
+            .unwrap_or(F::ZERO);
         let inv_var = AllocatedNum::alloc(cs.namespace(|| "alloc_inv"), || Ok(inv))?;
 
         let bit = if val.is_zero().into() { true } else { false };
@@ -157,7 +164,10 @@ impl<F: PrimeField> NumConstraintSystem<F> for AllocatedNum<F> {
         mut cs: CS,
         other: &Self,
     ) -> Result<Self::Output, SynthesisError> {
-        let result = self.get_value().unwrap().sub(&other.get_value().unwrap());
+        let result = self
+            .get_value()
+            .unwrap_or(F::ZERO)
+            .sub(&other.get_value().unwrap_or(F::ZERO));
         let result_var = AllocatedNum::alloc(cs.namespace(|| "alloc_result"), || Ok(result))?;
 
         cs.enforce(
@@ -183,9 +193,9 @@ impl<F: PrimeField> NumConstraintSystem<F> for AllocatedNum<F> {
         mut cs: CS,
         vars: &[Self::Output],
     ) -> Result<Self::Output, SynthesisError> {
-        let mut sum = vars[0].get_value().unwrap();
+        let mut sum = vars[0].get_value().unwrap_or(F::ZERO);
         for x in vars.iter().skip(1) {
-            sum += x.get_value().unwrap()
+            sum += x.get_value().unwrap_or(F::ZERO)
         }
 
         let sum_var = AllocatedNum::alloc(cs.namespace(|| "alloc_sum"), || Ok(sum))?;

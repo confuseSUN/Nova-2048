@@ -25,7 +25,7 @@ impl<F: PrimeField> SortByZero<F> {
 
     pub fn synthesize<CS: ConstraintSystem<F>>(
         &mut self,
-        cs: &mut CS,
+        mut cs: CS,
     ) -> Result<(), SynthesisError> {
         // Takes two allocated numbers (a, b) and returns
         // (b, a) if and only if `a` == 0 , and (a, b)

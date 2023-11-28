@@ -25,7 +25,7 @@ impl<F: PrimeField> DirectionChooser<F> {
 
     pub fn synthesize<CS: ConstraintSystem<F>>(
         &mut self,
-        cs: &mut CS,
+        mut cs: CS,
     ) -> Result<(), SynthesisError> {
         for (i, x) in self.direction.iter().enumerate() {
             x.apply_bool_constraint(

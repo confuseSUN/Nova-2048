@@ -22,7 +22,7 @@ impl<F: PrimeField> Merge<F> {
 
     pub fn synthesize<CS: ConstraintSystem<F>>(
         &mut self,
-        cs: &mut CS,
+        mut cs: CS,
     ) -> Result<(), SynthesisError> {
         let mut namespace_index = 0;
 
@@ -37,10 +37,13 @@ impl<F: PrimeField> Merge<F> {
                 b,
             )?;
 
-            let (c, d) = if bit.get_value().unwrap().is_zero().into() {
-                (a.get_value().unwrap(), b.get_value().unwrap())
+            let (c, d) = if bit.get_value().unwrap_or(F::ZERO).is_zero().into() {
+                (
+                    a.get_value().unwrap_or(F::ZERO),
+                    b.get_value().unwrap_or(F::ZERO),
+                )
             } else {
-                (a.get_value().unwrap().double(), F::ZERO)
+                (a.get_value().unwrap_or(F::ZERO).double(), F::ZERO)
             };
 
             let c_var = AllocatedNum::alloc(

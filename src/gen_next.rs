@@ -23,7 +23,7 @@ impl<F: PrimeField> GenNext<F> {
 
     pub fn synthesize<CS: ConstraintSystem<F>>(
         &mut self,
-        cs: &mut CS,
+        mut cs: CS,
     ) -> Result<(), SynthesisError> {
         let mut flipped_bits = Vec::new();
         for (i, val) in self.old_board.iter().enumerate() {
@@ -49,15 +49,16 @@ impl<F: PrimeField> GenNext<F> {
             )?);
         }
 
-        // A simple calculation for n=sum{old_board},
+        // A simple calculation for n=sum{old_board} + num_candidates,
         //
         // todo! replace n=hash(old_board, direction, ...).
-        let n = AllocatedNum::sum(cs.namespace(|| "sum_of_board"), &self.old_board)?;
-        let n_bytes = n.get_value().unwrap().to_repr();
+        let mut n = AllocatedNum::sum(cs.namespace(|| "sum_of_board"), &self.old_board)?;
+        n = n.add(cs.namespace(|| "add_num_candidates"), &num_candidates)?;
+        let n_bytes = n.get_value().unwrap_or(F::ZERO).to_repr();
         let n_big = BigUint::from_bytes_le(n_bytes.as_ref());
 
         let position = {
-            let m_bytes = num_candidates.get_value().unwrap().to_repr();
+            let m_bytes = num_candidates.get_value().unwrap_or(F::ONE).to_repr();
             let m_big: BigUint = BigUint::from_bytes_le(m_bytes.as_ref());
 
             let (quotient, remainder) = n_big.div_rem(&m_big);
@@ -226,7 +227,7 @@ mod test {
         assert_eq!(
             new_board,
             vec![
-                zero,  two,   two,   two,
+                zero,  four,   two,   two,
                 two,   two,   four,  eight,
                 four,  eight, zero,  zero,
                 two,   four,  eight, zero,

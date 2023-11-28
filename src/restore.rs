@@ -25,7 +25,7 @@ impl<F: PrimeField> Restore<F> {
 
     pub fn synthesize<CS: ConstraintSystem<F>>(
         &mut self,
-        cs: &mut CS,
+        mut cs: CS,
     ) -> Result<(), SynthesisError> {
         let board_0 = AllocatedNum::product_sum(
             cs.namespace(|| "restore_0"),

@@ -12,6 +12,8 @@ ff = { version = "0.13.0", features = ["derive"] }
 num-bigint = "0.4.3"
 num-integer = "0.1.45"
 
-
 [dev-dependencies]
+pasta_curves = { version = "0.5", features = ["repr-c", "serde"] }
 blstrs = "0.7.1"
+flate2 = "1.0"
+bincode = "1.3"
